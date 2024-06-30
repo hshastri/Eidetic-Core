@@ -47,33 +47,56 @@ class EideticLinearLayer(nn.Module):
             
             
             self.quantiles.append(inner_quantile)
+    
+    def build_index(self, num_quantiles):
+        bias = torch.Tensor(self.size_out, num_quantiles)
 
-
-
+        #Copy my bias across my indices from the trained bias vector
+        for i in range(0, len(bias)):
+            for j in range(0, len(bias[i])):
+                bias[i][j] = self.bias[i]
         
+        self.indexed_bias = nn.Parameter(bias)
+
+
+
+    #TODO: Convert from linear to binary search
+    def binarySearchQuantiles(self, activation, index):
+        
+        for i in range(0, len(self.quantiles[index])):
+            if activation <= self.quantiles[index][i]:
                 
+                return i
 
+        if activation > self.quantiles[index][len(self.quantiles[index]) -1]:
+            return len(self.quantiles[index]) 
 
+        return -1
         
-
     def forward(self, x, store_activations, get_indices):
         w_times_x= torch.mm(x, self.weights.t())
         
+        if store_activations == True:
+            all_activations = w_times_x.detach().cpu().numpy()
 
-        all_activations = w_times_x.detach().cpu().numpy()
+            for activation_vector in all_activations:
+        
+                self.outputValues[self.index] = activation_vector
+                self.index = self.index + 1
 
-        for activation_vector in all_activations:
-     
-            self.outputValues[self.index] = activation_vector
-            self.index = self.index + 1
+        indices = torch.zeros([len(w_times_x), self.size_out])
+        
+        if get_indices == True:
+            for j in range(0, len(w_times_x)):
+                for i in range(0, self.size_out):
+                    indices[j][i] = self.binarySearchQuantiles(w_times_x[j][i].item(), i)
 
-        indices = torch.zeros(self.size_out)
 
         return [torch.add(w_times_x, self.bias), indices]  
 
 class IndexedLinearLayer(nn.Module):
     """ Custom Linear layer but mimics a standard linear layer """
-    def __init__(self, size_in, size_out, num_indices):
+    def __init__(self, size_in, size_out):
         super().__init__()
         self.size_in, self.size_out = size_in, size_out
         weights = torch.Tensor(size_out, size_in)
@@ -86,10 +109,22 @@ class IndexedLinearLayer(nn.Module):
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weights)
         bound = 1 / math.sqrt(fan_in)
         nn.init.uniform_(self.bias, -bound, bound)  # bias init
+    
+    def build_index(self, num_quantiles):
+        weights = torch.Tensor(self.size_out, self.size_in, num_quantiles)
 
-    def forward(self, x, store_activations, get_index):
+        #Copy weights across indices from the trained weight vector
+        for i in range(0, len(weights)):
+            for j in range(0, len(weights[i])):
+                for k in range(0, len(weights[i][j])):
+                    weights[i][j][k] = self.weights[i][j]
+
+        self.indexed_weights = nn.Parameter(weights)
+
+            
+
+    def forward(self, x, use_indices, indices):
         w_times_x= torch.mm(x, self.weights.t())
-        rand = random.uniform(0, 1)
 
 
         return torch.add(w_times_x, self.bias) 
