@@ -16,7 +16,7 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 10)
-        self.eidetic= customlayers.EideticLinearLayer(10, 10, 1.0)
+        self.eidetic= customlayers.EideticLinearLayer(10, 10, 0.1, 60000)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -30,10 +30,13 @@ class Net(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        x = self.eidetic(x)
+        [x, idxs] = self.eidetic(x, True, False)
         
         output = F.log_softmax(x, dim=1)
         return output
+
+    def calculate_n_quantiles(self, num_quantiles):
+      self.eidetic.calculate_n_quantiles(num_quantiles)
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
@@ -136,7 +139,8 @@ def main():
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        # test(model, device, test_loader)
+        model.calculate_n_quantiles(5)
         scheduler.step()
 
     if args.save_model:
