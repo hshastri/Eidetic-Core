@@ -16,7 +16,7 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 10)
-        self.eidetic= customlayers.EideticLinearLayer(10, 10, 0.1, 60000)
+        self.eidetic= customlayers.EideticLinearLayer(10, 15, 0.1, 60000)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -140,7 +140,7 @@ def main():
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         # test(model, device, test_loader)
-        model.calculate_n_quantiles(5)
+        model.calculate_n_quantiles(10)
         scheduler.step()
 
     if args.save_model:

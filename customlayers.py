@@ -22,7 +22,7 @@ class EideticLinearLayer(nn.Module):
         self.n_quantile_rate = n_quantile_rate
         self.quantiles = []
         self.quantile_cardinality = quantile_cardinality
-
+        
         # initialize weights and biases
         nn.init.kaiming_uniform_(self.weights, a=math.sqrt(5)) # weight init
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weights)
@@ -30,12 +30,29 @@ class EideticLinearLayer(nn.Module):
         nn.init.uniform_(self.bias, -bound, bound)  # bias init
 
     def calculate_n_quantiles(self, num_quantiles):
-        self.outputValues.view('i8,i8,i8,i8,i8,i8,i8,i8,i8,i8').sort(order=['f0'], axis=0)
         
+        #Every val indicies in our list represent a quantile separaiton point
         val = int(self.quantile_cardinality / num_quantiles)
 
-        for i in range(0, num_quantiles):
-            print(self.outputValues[val*(i+1)])
+        #For every column is our stored list of activations
+        for j in range(0, self.size_out):
+            inner_quantile = []
+
+            #Sort our list by the jth column
+            self.outputValues = self.outputValues[self.outputValues[:,j].argsort(kind='mergesort')]
+
+            #Append to our inner quantile which represents the quantiles for column j
+            for i in range(0, num_quantiles-1):
+                inner_quantile.append(self.outputValues[val*(i+1)][j])
+            
+            
+            self.quantiles.append(inner_quantile)
+
+
+
+        
+                
+
 
         
 
