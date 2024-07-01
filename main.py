@@ -37,11 +37,14 @@ class Net(nn.Module):
         output = F.log_softmax(x, dim=1)
         return output
 
+    def unfreeze_eidetic_layers(self):
+        self.indexed.unfreeze_params()
+
     def calculate_n_quantiles(self, num_quantiles):
       self.eidetic.calculate_n_quantiles(num_quantiles)
 
     def index_layers(self, num_quantiles):
-        self.eidetic.build_index(num_quantiles)
+        # self.eidetic.build_index(num_quantiles)
         self.indexed.build_index(num_quantiles)
         
 
@@ -80,6 +83,12 @@ def test(model, device, test_loader, calculate_distribution, get_indices, use_in
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
+def freeze_layers(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+def unfreeze_eidetic_layers(model):
+    model.unfreeze_eidetic_layers()
 
 def main():
     # Training settings
@@ -147,6 +156,8 @@ def main():
         test(model, device, train_loader, True, False, False)
         model.calculate_n_quantiles(10)
         model.index_layers(10)
+        freeze_layers(model)
+        unfreeze_eidetic_layers(model)
         test(model, device, train_loader, False, True, True)
         # train(args, model, device, train_loader, optimizer, epoch, False, True)
         scheduler.step()

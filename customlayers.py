@@ -48,6 +48,7 @@ class EideticLinearLayer(nn.Module):
             
             self.quantiles.append(inner_quantile)
     
+    #Build index for biases
     def build_index(self, num_quantiles):
         bias = torch.Tensor(self.size_out, num_quantiles)
 
@@ -57,7 +58,6 @@ class EideticLinearLayer(nn.Module):
                 bias[i][j] = self.bias[i]
         
         self.indexed_bias = nn.Parameter(bias)
-
 
 
     #TODO: Convert from linear to binary search
@@ -122,7 +122,10 @@ class IndexedLinearLayer(nn.Module):
         self.indexed_weights = nn.Parameter(weights)
 
             
-
+    def unfreeze_params(self):
+        for param in self.indexed_weights:
+            param.requires_grad = True
+        
     def forward(self, x, use_indices, indices):
         w_times_x= torch.mm(x, self.weights.t())
 
