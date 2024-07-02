@@ -19,7 +19,7 @@ class Net(nn.Module):
         self.eidetic= customlayers.EideticLinearLayer(10, 15, 0.1, 60000)
         self.indexed= customlayers.IndexedLinearLayer(15, 10)
 
-    def forward(self, x, calculate_distribution, get_indices, use_indices):
+    def forward(self, x, calculate_distribution, get_indices):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
@@ -32,13 +32,16 @@ class Net(nn.Module):
         x = self.dropout2(x)
         x = self.fc2(x)
         [x, idxs] = self.eidetic(x, calculate_distribution, get_indices)
-        x = self.indexed(x, use_indices, idxs)
+        x = self.indexed(x, idxs)
         
         output = F.log_softmax(x, dim=1)
         return output
 
     def unfreeze_eidetic_layers(self):
         self.indexed.unfreeze_params()
+
+    def use_indices(self, val):
+        self.indexed.use_indices(val)
 
     def calculate_n_quantiles(self, num_quantiles):
       self.eidetic.calculate_n_quantiles(num_quantiles)
@@ -48,12 +51,12 @@ class Net(nn.Module):
         self.indexed.build_index(num_quantiles)
         
 
-def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, get_indices, use_indices):
+def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, get_indices):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
-        output = model(data, calculate_distribution, get_indices, use_indices)
+        output = model(data, calculate_distribution, get_indices)
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
@@ -65,14 +68,14 @@ def train(args, model, device, train_loader, optimizer, epoch, calculate_distrib
                 break
 
 
-def test(model, device, test_loader, calculate_distribution, get_indices, use_indices):
+def test(model, device, test_loader, calculate_distribution, get_indices):
     model.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output = model(data, calculate_distribution, get_indices, use_indices)
+            output = model(data, calculate_distribution, get_indices)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -153,17 +156,18 @@ def main():
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        test(model, device, train_loader, True, False, False)
+        test(model, device, train_loader, True, False)
         print("Calculating Quantiles...")
         model.calculate_n_quantiles(10)
         print("Indexing Layers...")
         model.index_layers(10)
+        model.use_indices(True)
         print("Freezing non eidetic layers...")
         freeze_layers(model)
         unfreeze_eidetic_layers(model)
         
         print("Testing model with eidetic parameters...")
-        test(model, device, train_loader, False, True, True)
+        test(model, device, train_loader, False, True)
         # train(args, model, device, train_loader, optimizer, epoch, False, True)
         print("Epoch finished...")
         scheduler.step()

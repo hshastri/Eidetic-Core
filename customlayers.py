@@ -103,7 +103,7 @@ class IndexedLinearLayer(nn.Module):
         self.weights = nn.Parameter(weights)  # nn.Parameter is a Tensor that's a module parameter.
         bias = torch.Tensor(size_out)
         self.bias = nn.Parameter(bias)
-
+        self.use_indices = False
         # initialize weights and biases
         nn.init.kaiming_uniform_(self.weights, a=math.sqrt(5)) # weight init
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weights)
@@ -125,12 +125,15 @@ class IndexedLinearLayer(nn.Module):
     def unfreeze_params(self):
         for param in self.indexed_weights:
             param.requires_grad = True
-        
-    def forward(self, x, use_indices, indices):
+    
+    def set_use_indices(self, val):
+        self.use_indices = val
+
+    def forward(self, x, indices):
         w_times_x= torch.mm(x, self.weights.t())
 
         #TODO: Rewrite to improve performance
-        if use_indices == True:
+        if self.use_indices == True:
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
             for i in range(0, len(weights_from_index)):
