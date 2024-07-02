@@ -129,7 +129,7 @@ class IndexedLinearLayer(nn.Module):
     def forward(self, x, use_indices, indices):
         w_times_x= torch.mm(x, self.weights.t())
 
-        
+        #TODO: Rewrite to improve performance
         if use_indices == True:
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
