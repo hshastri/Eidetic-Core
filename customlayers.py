@@ -129,5 +129,20 @@ class IndexedLinearLayer(nn.Module):
     def forward(self, x, use_indices, indices):
         w_times_x= torch.mm(x, self.weights.t())
 
+        
+        if use_indices == True:
+            weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
+            for i in range(0, len(weights_from_index)):
+                for j in range(0, len(weights_from_index[i])):
+                    index = int(indices[i][j].item())
+
+                    for k in range(0, len(weights_from_index[i][j])):
+                        weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
+                
+                
+                w_times_x[i]= torch.matmul(x[i], weights_from_index[i].t())
+            
+
+        print("Batch")
         return torch.add(w_times_x, self.bias) 

@@ -154,12 +154,18 @@ def main():
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         test(model, device, train_loader, True, False, False)
+        print("Calculating Quantiles...")
         model.calculate_n_quantiles(10)
+        print("Indexing Layers...")
         model.index_layers(10)
+        print("Freezing non eidetic layers...")
         freeze_layers(model)
         unfreeze_eidetic_layers(model)
+        
+        print("Testing model with eidetic parameters...")
         test(model, device, train_loader, False, True, True)
         # train(args, model, device, train_loader, optimizer, epoch, False, True)
+        print("Epoch finished...")
         scheduler.step()
 
     if args.save_model:
