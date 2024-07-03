@@ -41,7 +41,7 @@ class Net(nn.Module):
         self.indexed.unfreeze_params()
 
     def use_indices(self, val):
-        self.indexed.use_indices(val)
+        self.indexed.set_use_indices(val)
 
     def calculate_n_quantiles(self, num_quantiles):
       self.eidetic.calculate_n_quantiles(num_quantiles)
@@ -58,6 +58,7 @@ def train(args, model, device, train_loader, optimizer, epoch, calculate_distrib
         optimizer.zero_grad()
         output = model(data, calculate_distribution, get_indices)
         loss = F.nll_loss(output, target)
+        # loss.requires_grad = True
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -90,17 +91,28 @@ def freeze_layers(model):
     for param in model.parameters():
         param.requires_grad = False
 
-def unfreeze_eidetic_layers(model):
-    model.unfreeze_eidetic_layers()
+# def freeze_eidetic_layers(model):
+#     model.indexed.freeze_params()
 
+def print_trainable_params(model):
+    for param in model.parameters():
+        if param.requires_grad == True:
+            print(param)
+
+def unfreeze_eidetic_layers(model):
+    for param in model.indexed.parameters():
+        param.requires_grad = True
+
+    
+        
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=3, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -154,22 +166,28 @@ def main():
     model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
+    round_ = 1
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        test(model, device, train_loader, True, False)
-        print("Calculating Quantiles...")
-        model.calculate_n_quantiles(10)
-        print("Indexing Layers...")
-        model.index_layers(10)
-        model.use_indices(True)
-        print("Freezing non eidetic layers...")
-        freeze_layers(model)
-        unfreeze_eidetic_layers(model)
-        
-        print("Testing model with eidetic parameters...")
-        test(model, device, train_loader, False, True)
-        # train(args, model, device, train_loader, optimizer, epoch, False, True)
+
+        if round_ == 1:
+            test(model, device, train_loader, True, False)
+            print("Calculating Quantiles...")
+            model.calculate_n_quantiles(10)
+            print("Indexing Layers...")
+            model.index_layers(10)
+            model.use_indices(True)
+            print("Freezing non eidetic layers...")
+            freeze_layers(model)
+            unfreeze_eidetic_layers(model)
+            # freeze_eidetic_layers(model)
+            print_trainable_params(model)
+        print("Training model with eidetic parameters...")
+        # test(model, device, train_loader, False, True)
+        train(args, model, device, train_loader, optimizer, epoch, False, True)
+        print_trainable_params(model)
         print("Epoch finished...")
+        round_ = round_ + 1
         scheduler.step()
 
     if args.save_model:

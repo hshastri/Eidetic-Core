@@ -102,13 +102,17 @@ class IndexedLinearLayer(nn.Module):
         weights = torch.Tensor(size_out, size_in)
         self.weights = nn.Parameter(weights)  # nn.Parameter is a Tensor that's a module parameter.
         bias = torch.Tensor(size_out)
-        self.bias = nn.Parameter(bias)
+        # self.bias = nn.Parameter(bias)
         self.use_indices = False
         # initialize weights and biases
         nn.init.kaiming_uniform_(self.weights, a=math.sqrt(5)) # weight init
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weights)
         bound = 1 / math.sqrt(fan_in)
-        nn.init.uniform_(self.bias, -bound, bound)  # bias init
+        self.use_previous_indices = False
+        self.previous_indices = None
+        
+
+        # nn.init.uniform_(self.bias, -bound, bound)  # bias init
     
     def build_index(self, num_quantiles):
         weights = torch.Tensor(self.size_out, self.size_in, num_quantiles)
@@ -123,29 +127,71 @@ class IndexedLinearLayer(nn.Module):
 
             
     def unfreeze_params(self):
+        for param in self.weights:
+            param.requires_grad = True
+
         for param in self.indexed_weights:
             param.requires_grad = True
+
+
+
+    # def freeze_params(self):
+        # for param in self.indexed_weights:
+        #     param.requires_grad = False
+
+        # for param in self.bias:
+        #     param.requires_grad = False
+
+    def unfreeze_params_by_index(self, indices):
+
+        for i in range(0, len(self.indexed_weights)):
+            for j in range(0, len(self.indexed_weights[i])):
+                index = int(indices[0][j].item())
+                self.indexed_weights[i][j][index].requires_grad = True
     
     def set_use_indices(self, val):
         self.use_indices = val
 
+    #TODO: Figure out how to rewrite forward/backward pass without requiring swapping of weights
     def forward(self, x, indices):
         w_times_x= torch.mm(x, self.weights.t())
-
+        
+        
         #TODO: Rewrite to improve performance
-        if self.use_indices == True:
+        if self.use_previous_indices == True and self.use_indices == True:
+            
+
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
+            for i in range(0, len(weights_from_index)):
+                for j in range(0, len(weights_from_index[i])):
+                    index = int(self.previous_indices[i][j].item())
+
+                    for k in range(0, len(weights_from_index[i][j])):
+                        weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
+                        with torch.no_grad():
+                            self.indexed_weights[j][k][index] = self.weights[j][k].item()
+
+       
+        #TODO: Rewrite to improve performance
+        if self.use_indices == True:
+            
+            self.use_previous_indices = True
+            self.previous_indices = indices
+            weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
+            
             for i in range(0, len(weights_from_index)):
                 for j in range(0, len(weights_from_index[i])):
                     index = int(indices[i][j].item())
 
                     for k in range(0, len(weights_from_index[i][j])):
                         weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
+                        with torch.no_grad():
+                            self.weights[j][k] = self.indexed_weights[j][k][index].item()
+
+       
                 
-                
-                w_times_x[i]= torch.matmul(x[i], weights_from_index[i].t())
             
 
-        print("Batch")
-        return torch.add(w_times_x, self.bias) 
+        w_times_x= torch.mm(x, self.weights.t())
+        return w_times_x
