@@ -110,6 +110,9 @@ class IndexedLinearLayer(nn.Module):
         bound = 1 / math.sqrt(fan_in)
         self.use_previous_indices = False
         self.previous_indices = None
+
+        bias = torch.Tensor(size_out)
+        self.bias = nn.Parameter(bias)
         
 
         # nn.init.uniform_(self.bias, -bound, bound)  # bias init
@@ -194,4 +197,4 @@ class IndexedLinearLayer(nn.Module):
             
 
         w_times_x= torch.mm(x, self.weights.t())
-        return w_times_x
+        return torch.add(w_times_x, self.bias)
