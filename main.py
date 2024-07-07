@@ -6,6 +6,11 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import customlayers
+import logging 
+
+
+logging.basicConfig(filename='benchmark.log', filemode='a', level=logging.DEBUG)
+logging.info("Started")
 
 class Net(nn.Module):
     def __init__(self):
@@ -15,9 +20,9 @@ class Net(nn.Module):
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
-        self.eidetic= customlayers.EideticLinearLayer(10, 15, 0.1, 60000)
-        self.indexed= customlayers.IndexedLinearLayer(15, 36)
+        self.fc2 = nn.Linear(128, 36)
+        self.eidetic= customlayers.EideticLinearLayer(36, 36, 0.1, 60000)
+        self.indexed= customlayers.IndexedLinearLayer(36, 36)
 
     def forward(self, x, calculate_distribution, get_indices):
         x = self.conv1(x)
@@ -70,7 +75,7 @@ def train(args, model, device, train_loader, optimizer, epoch, calculate_distrib
                 break
 
 
-def test(model, device, test_loader, calculate_distribution, get_indices, val_to_add_to_target):
+def test(model, device, test_loader, calculate_distribution, get_indices, val_to_add_to_target, test_name):
     model.eval()
     test_loss = 0
     correct = 0
@@ -86,6 +91,9 @@ def test(model, device, test_loader, calculate_distribution, get_indices, val_to
     test_loss /= len(test_loader.dataset)
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+    logging.info(test_name + 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
@@ -177,21 +185,21 @@ def main():
 
         if round_ == 1:
             train(args, model, device, extension_train_loader, optimizer, epoch, False, False, 0)
-            test(model, device, train_loader, True, False, 26)
+            test(model, device, train_loader, True, False, 26, "Calculating Nthiles")
             print("Calculating Quantiles...")
-            model.calculate_n_quantiles(10)
+            model.calculate_n_quantiles(5)
             print("Indexing Layers...")
-            model.index_layers(10)
+            model.index_layers(5)
             model.use_indices(True)
             print("Freezing non eidetic layers...")
             freeze_layers(model)
             unfreeze_eidetic_layers(model)
-            # freeze_eidetic_layers(model)
+            freeze_eidetic_layers(model)
             print_trainable_params(model)
         print("Training model with eidetic parameters...")
-        # test(model, device, train_loader, False, True)
         train(args, model, device, train_loader, optimizer, epoch, False, True, 26)
-        print_trainable_params(model)
+        test(model, device, extension_train_loader, False, True, 0, "Letter MNIST")
+        test(model, device, train_loader, False, True, 26, "Digit MNIST")
         print("Epoch finished...")
         round_ = round_ + 1
         scheduler.step()

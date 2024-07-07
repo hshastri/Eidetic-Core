@@ -71,7 +71,7 @@ class EideticLinearLayer(nn.Module):
         if activation > self.quantiles[index][len(self.quantiles[index]) -1]:
             return len(self.quantiles[index]) 
 
-        return -1
+        return 0
         
     def forward(self, x, store_activations, get_indices):
         w_times_x= torch.mm(x, self.weights.t())
