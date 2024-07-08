@@ -7,7 +7,7 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import customlayers
 import logging 
-
+import numpy as np
 
 logging.basicConfig(filename='benchmark.log', filemode='a', level=logging.DEBUG)
 logging.info("Started")
@@ -21,7 +21,7 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 36)
-        self.eidetic= customlayers.EideticLinearLayer(36, 36, 0.1, 60000)
+        self.eidetic= customlayers.EideticLinearLayer(36, 36, 0.1, 1000)
         self.indexed= customlayers.IndexedLinearLayer(36, 36)
 
     def forward(self, x, calculate_distribution, get_indices):
@@ -54,6 +54,7 @@ class Net(nn.Module):
     def index_layers(self, num_quantiles):
         # self.eidetic.build_index(num_quantiles)
         self.indexed.build_index(num_quantiles)
+
         
 
 def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, get_indices, val_to_add_to_target):
@@ -101,8 +102,8 @@ def freeze_layers(model):
     for param in model.parameters():
         param.requires_grad = False
 
-# def freeze_eidetic_layers(model):
-#     model.indexed.freeze_params()
+def freeze_eidetic_layers(model):
+    model.indexed.freeze_params()
 
 def print_trainable_params(model):
     for param in model.parameters():
@@ -110,8 +111,12 @@ def print_trainable_params(model):
             print(param)
 
 def unfreeze_eidetic_layers(model):
+    
+    i = 0
     for param in model.indexed.parameters():
-        param.requires_grad = True
+        if i == 0:
+            param.requires_grad = True
+        i = i + 1
 
     
         
@@ -146,15 +151,16 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    if use_cuda:
-        device = torch.device("cuda")
-    elif use_mps:
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
+    # if use_cuda:
+    #     device = torch.device("cuda")
+    # elif use_mps:
+    #     device = torch.device("mps")
+    # else:
+    device = torch.device("cuda")
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
+    use_cude = True
     if use_cuda:
         cuda_kwargs = {'num_workers': 1,
                        'pin_memory': True,
@@ -176,30 +182,47 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     extension_train_loader = torch.utils.data.DataLoader(dataset3,**train_kwargs)
 
+    subset_indices = np.arange(1,1000) # select your indices here as a list
+
+    subset = torch.utils.data.Subset(extension_train_loader.dataset, subset_indices)
+    degradation_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
+
+
+    
+    subset_indices = np.arange(1,5000) # select your indices here as a list
+
+    subset = torch.utils.data.Subset(train_loader.dataset, subset_indices)
+    train_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
+
     model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     round_ = 1
+    use_indices = True
+    num_quantiles = 12
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
 
         if round_ == 1:
-            train(args, model, device, extension_train_loader, optimizer, epoch, False, False, 0)
-            test(model, device, train_loader, True, False, 26, "Calculating Nthiles")
-            print("Calculating Quantiles...")
-            model.calculate_n_quantiles(5)
-            print("Indexing Layers...")
-            model.index_layers(5)
-            model.use_indices(True)
+            train(args, model, device, train_subset, optimizer, epoch, False, False, 26)
+        
+            test(model, device, degradation_subset, use_indices, False, 0, "Calculating Nthiles")
+
+            if use_indices == True:
+                print("Calculating Quantiles...")
+                model.calculate_n_quantiles(num_quantiles)
+                print("Indexing Layers...")
+                model.index_layers(num_quantiles)
+                model.use_indices(True)
             print("Freezing non eidetic layers...")
             freeze_layers(model)
             unfreeze_eidetic_layers(model)
-            freeze_eidetic_layers(model)
-            print_trainable_params(model)
+            # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
-        train(args, model, device, train_loader, optimizer, epoch, False, True, 26)
-        test(model, device, extension_train_loader, False, True, 0, "Letter MNIST")
-        test(model, device, train_loader, False, True, 26, "Digit MNIST")
+        test(model, device, train_subset, False, use_indices, 26, "Digit MNIST PRE")
+        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        test(model, device, degradation_subset, False, use_indices, 0, "Letter MNIST")
+        test(model, device, train_subset, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")
         round_ = round_ + 1
         scheduler.step()

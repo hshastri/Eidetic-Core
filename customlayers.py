@@ -101,8 +101,7 @@ class IndexedLinearLayer(nn.Module):
         self.size_in, self.size_out = size_in, size_out
         weights = torch.Tensor(size_out, size_in)
         self.weights = nn.Parameter(weights)  # nn.Parameter is a Tensor that's a module parameter.
-        bias = torch.Tensor(size_out)
-        # self.bias = nn.Parameter(bias)
+        
         self.use_indices = False
         # initialize weights and biases
         nn.init.kaiming_uniform_(self.weights, a=math.sqrt(5)) # weight init
@@ -119,13 +118,15 @@ class IndexedLinearLayer(nn.Module):
     
     def build_index(self, num_quantiles):
         weights = torch.Tensor(self.size_out, self.size_in, num_quantiles)
-
+    
         #Copy weights across indices from the trained weight vector
         for i in range(0, len(weights)):
+      
             for j in range(0, len(weights[i])):
+           
                 for k in range(0, len(weights[i][j])):
                     weights[i][j][k] = self.weights[i][j]
-
+     
         self.indexed_weights = nn.Parameter(weights)
 
             
@@ -133,17 +134,13 @@ class IndexedLinearLayer(nn.Module):
         for param in self.weights:
             param.requires_grad = True
 
-        for param in self.indexed_weights:
-            param.requires_grad = True
 
 
 
-    # def freeze_params(self):
-        # for param in self.indexed_weights:
-        #     param.requires_grad = False
+    def freeze_params(self):
 
-        # for param in self.bias:
-        #     param.requires_grad = False
+        for param in self.bias:
+            param = param.detach()
 
     def unfreeze_params_by_index(self, indices):
 
@@ -167,10 +164,11 @@ class IndexedLinearLayer(nn.Module):
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
             for i in range(0, len(weights_from_index)):
-                for j in range(0, len(weights_from_index[i])):
+                for j in range(0, len(indices[i])):
                     index = int(self.previous_indices[i][j].item())
 
                     for k in range(0, len(weights_from_index[i][j])):
+                        
                         weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
                         with torch.no_grad():
                             self.indexed_weights[j][k][index] = self.weights[j][k].item()
@@ -184,10 +182,11 @@ class IndexedLinearLayer(nn.Module):
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
             
             for i in range(0, len(weights_from_index)):
-                for j in range(0, len(weights_from_index[i])):
+                for j in range(0, len(indices[i])):
                     index = int(indices[i][j].item())
 
                     for k in range(0, len(weights_from_index[i][j])):
+                        
                         weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
                         with torch.no_grad():
                             self.weights[j][k] = self.indexed_weights[j][k][index].item()
