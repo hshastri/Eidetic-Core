@@ -146,6 +146,33 @@ def main():
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
     args = parser.parse_args()
+
+
+    parser2 = argparse.ArgumentParser(description='PyTorch MNIST Example')
+    parser2.add_argument('--batch-size', type=int, default=1, metavar='N',
+                        help='input batch size for training (default: 64)')
+    parser2.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
+                        help='input batch size for testing (default: 1000)')
+    parser2.add_argument('--epochs', type=int, default=1, metavar='N',
+                        help='number of epochs to train (default: 14)')
+    parser2.add_argument('--lr', type=float, default=0.1, metavar='LR',
+                        help='learning rate (default: 1.0)')
+    parser2.add_argument('--gamma', type=float, default=0.7, metavar='M',
+                        help='Learning rate step gamma (default: 0.7)')
+    parser2.add_argument('--no-cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser2.add_argument('--no-mps', action='store_true', default=False,
+                        help='disables macOS GPU training')
+    parser2.add_argument('--dry-run', action='store_true', default=False,
+                        help='quickly check a single pass')
+    parser2.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser2.add_argument('--log-interval', type=int, default=10, metavar='N',
+                        help='how many batches to wait before logging training status')
+    parser2.add_argument('--save-model', action='store_true', default=False,
+                        help='For Saving the current Model')
+    args2 = parser2.parse_args()
+
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     use_mps = not args.no_mps and torch.backends.mps.is_available()
 
@@ -199,7 +226,7 @@ def main():
 
     round_ = 1
     use_indices = True
-    num_quantiles = 12
+    num_quantiles = 8
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
 
@@ -220,7 +247,7 @@ def main():
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
         test(model, device, train_subset, False, use_indices, 26, "Digit MNIST PRE")
-        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        train(args2, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
         test(model, device, degradation_subset, False, use_indices, 0, "Letter MNIST")
         test(model, device, train_subset, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")

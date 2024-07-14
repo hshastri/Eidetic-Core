@@ -220,3 +220,76 @@ INFO:root:Digit MNISTTest set: Average loss: 8.5188, Accuracy: 12/4999 (0%)
 INFO:root:Started
 INFO:root:Calculating NthilesTest set: Average loss: 3944.5268, Accuracy: 0/999 (0%)
 
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 12.1152, Accuracy: 3/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.2304, Accuracy: 4684/4999 (94%)
+
+INFO:root:Letter MNISTTest set: Average loss: 5.5446, Accuracy: 25/999 (3%)
+
+INFO:root:Digit MNISTTest set: Average loss: 2.2133, Accuracy: 2153/4999 (43%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 928020361474.3063, Accuracy: 0/999 (0%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 12.1152, Accuracy: 3/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.2304, Accuracy: 4684/4999 (94%)
+
+INFO:root:Letter MNISTTest set: Average loss: 5.5446, Accuracy: 25/999 (3%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 9.6388, Accuracy: 3/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.1677, Accuracy: 4762/4999 (95%)
+
+INFO:root:Letter MNISTTest set: Average loss: 4.7321, Accuracy: 27/999 (3%)
+
+INFO:root:Digit MNISTTest set: Average loss: 4.4674, Accuracy: 1773/4999 (35%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 10.1577, Accuracy: 1/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.1615, Accuracy: 4767/4999 (95%)
+
+INFO:root:Letter MNISTTest set: Average loss: 3.4866, Accuracy: 99/999 (10%)
+
+INFO:root:Digit MNISTTest set: Average loss: 3.4941, Accuracy: 1545/4999 (31%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 12.1152, Accuracy: 3/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.2304, Accuracy: 4684/4999 (94%)
+
+INFO:root:Letter MNISTTest set: Average loss: 3.7898, Accuracy: 93/999 (9%)
+
+INFO:root:Digit MNISTTest set: Average loss: 3.6484, Accuracy: 1493/4999 (30%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 12.1152, Accuracy: 3/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.2304, Accuracy: 4684/4999 (94%)
+
+INFO:root:Letter MNISTTest set: Average loss: 2.7338, Accuracy: 208/999 (21%)
+
+INFO:root:Digit MNISTTest set: Average loss: 8.8414, Accuracy: 513/4999 (10%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 10.1577, Accuracy: 1/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.1615, Accuracy: 4767/4999 (95%)
+
+INFO:root:Letter MNISTTest set: Average loss: 2.7323, Accuracy: 225/999 (23%)
+
+INFO:root:Digit MNISTTest set: Average loss: 8.5188, Accuracy: 12/4999 (0%)
+
+INFO:root:Started
+INFO:root:Calculating NthilesTest set: Average loss: 10.1577, Accuracy: 1/999 (0%)
+
+INFO:root:Digit MNIST PRETest set: Average loss: 0.1615, Accuracy: 4767/4999 (95%)
+
+INFO:root:Letter MNISTTest set: Average loss: 6.2849, Accuracy: 5/999 (1%)
+
+INFO:root:Digit MNISTTest set: Average loss: 1.3446, Accuracy: 3351/4999 (67%)
+
