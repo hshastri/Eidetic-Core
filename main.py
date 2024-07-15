@@ -10,6 +10,12 @@ import logging
 import numpy as np
 import db
 
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
+
+
 logging.basicConfig(filename='benchmark.log', filemode='a', level=logging.DEBUG)
 logging.info("Started")
 
@@ -227,10 +233,15 @@ def main():
 
     round_ = 1
     use_indices = True
-    use_db = True
+    use_db = False
+
+    if os.getenv("USE_DB") == "True":
+        use_db = True
+        db.database.recreate_tables(num_quantiles)
+        
     num_quantiles = 8
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-    db.database.recreate_tables(num_quantiles)
+        
  
     for epoch in range(1, args.epochs + 1):
 

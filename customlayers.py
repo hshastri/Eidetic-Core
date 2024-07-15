@@ -95,7 +95,9 @@ class EideticLinearLayer(nn.Module):
             for activation_vector in all_activations:
                 
                 if use_db == True:
-                    db.database.insert_record(activation_vector)
+                    
+                    if self.n_quantile_rate <= random.uniform(0, 1):
+                        db.database.insert_record(activation_vector)
 
                 self.outputValues[self.index] = activation_vector
                 self.index = self.index + 1

@@ -1,11 +1,15 @@
 
 import psycopg2
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 class Database():
     """ Custom Linear layer but mimics a standard linear layer """
     def __init__(self):
-        connection = psycopg2.connect(database="eidetic", user="postgres", password="banana", host="localhost", port=5432)
+        connection = psycopg2.connect(database=os.getenv("DATABASE"), user=os.getenv("USER"), password=os.getenv("PASSWORD"), host=os.getenv("HOST"), port=os.getenv("PORT"))
         connection.autocommit = True
         self.connection = connection
 
@@ -88,5 +92,6 @@ class Database():
         rows = cursor.fetchall()
         
         return rows
-
-database = Database()
+        
+if os.getenv("USE_DB") == "True":
+    database = Database()
