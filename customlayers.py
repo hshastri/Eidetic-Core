@@ -4,7 +4,7 @@ import torch.nn as nn
 import random
 import numpy as np
 import sys
-
+import db
 np.set_printoptions(threshold=sys.maxsize)
 
 class EideticLinearLayer(nn.Module):
@@ -73,14 +73,17 @@ class EideticLinearLayer(nn.Module):
 
         return 0
         
-    def forward(self, x, store_activations, get_indices):
+    def forward(self, x, store_activations, get_indices, use_db):
         w_times_x= torch.mm(x, self.weights.t())
         
         if store_activations == True:
             all_activations = w_times_x.detach().cpu().numpy()
-
+            
             for activation_vector in all_activations:
-        
+                
+                if use_db == True:
+                    db.database.insert_record(activation_vector)
+
                 self.outputValues[self.index] = activation_vector
                 self.index = self.index + 1
 
