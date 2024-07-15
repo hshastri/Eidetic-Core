@@ -9,15 +9,6 @@ class Database():
         connection.autocommit = True
         self.connection = connection
 
-        cursor = connection.cursor()
-
-        cursor.execute("SELECT * from percentile_distribution")
-
-        # Fetch all rows from database
-        record = cursor.fetchall()
-
-        print("Data from Database:- ", record)
-
     def insert_record(self, record):
 
         record_str = ""
@@ -90,7 +81,6 @@ class Database():
             group by node_id
             order by node_id;'''
         
-        print(query)
         cursor.execute(query)
         
         query_2 = "select * from percentile_distribution"

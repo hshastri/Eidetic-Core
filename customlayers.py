@@ -50,7 +50,16 @@ class EideticLinearLayer(nn.Module):
                 
                 self.quantiles.append(inner_quantile)
         else:
-            db.database.create_quantile_distribution(num_quantiles)
+            distribution = db.database.create_quantile_distribution(num_quantiles)
+
+            for j in range(0, self.size_out):
+                inner_quantile = []
+                
+                #Append to our inner quantile which represents the quantiles for column j
+                for i in range(0, num_quantiles-1):
+                    inner_quantile.append(distribution[j][i+1])
+               
+                self.quantiles.append(inner_quantile)
     
     #Build index for biases
     def build_index(self, num_quantiles):
