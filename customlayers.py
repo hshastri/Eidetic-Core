@@ -7,7 +7,7 @@ import sys
 import db
 np.set_printoptions(threshold=sys.maxsize)
 
-#Testing branch protection
+#Testing branch protection...
 class EideticLinearLayer(nn.Module):
     """ Custom Linear layer but mimics a standard linear layer """
     def __init__(self, size_in, size_out, n_quantile_rate, quantile_cardinality):
