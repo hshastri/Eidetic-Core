@@ -29,24 +29,28 @@ class EideticLinearLayer(nn.Module):
         bound = 1 / math.sqrt(fan_in)
         nn.init.uniform_(self.bias, -bound, bound)  # bias init
 
-    def calculate_n_quantiles(self, num_quantiles):
+    def calculate_n_quantiles(self, num_quantiles, use_db):
         
-        #Every val indicies in our list represent a quantile separaiton point
-        val = int(self.quantile_cardinality / num_quantiles)
 
-        #For every column is our stored list of activations
-        for j in range(0, self.size_out):
-            inner_quantile = []
+        if use_db == False:
+            #Every val indicies in our list represent a quantile separaiton point
+            val = int(self.quantile_cardinality / num_quantiles)
 
-            #Sort our list by the jth column
-            self.outputValues = self.outputValues[self.outputValues[:,j].argsort(kind='mergesort')]
+            #For every column is our stored list of activations
+            for j in range(0, self.size_out):
+                inner_quantile = []
 
-            #Append to our inner quantile which represents the quantiles for column j
-            for i in range(0, num_quantiles-1):
-                inner_quantile.append(self.outputValues[val*(i+1)][j])
-            
-            
-            self.quantiles.append(inner_quantile)
+                #Sort our list by the jth column
+                self.outputValues = self.outputValues[self.outputValues[:,j].argsort(kind='mergesort')]
+
+                #Append to our inner quantile which represents the quantiles for column j
+                for i in range(0, num_quantiles-1):
+                    inner_quantile.append(self.outputValues[val*(i+1)][j])
+                
+                
+                self.quantiles.append(inner_quantile)
+        else:
+            db.database.create_quantile_distribution(num_quantiles)
     
     #Build index for biases
     def build_index(self, num_quantiles):

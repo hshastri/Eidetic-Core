@@ -47,9 +47,9 @@ class Database():
 
         extended_sql_3 = ""
 
-        for i in range(1, num_quantiles + 1):
+        for i in range(1, num_quantiles):
 
-            if i != num_quantiles:
+            if i != num_quantiles -1:
                 extended_sql_3 = extended_sql_3 + "threshold_" + str(i) + " double precision not null,\n"
             else: 
                 extended_sql_3 = extended_sql_3 + "threshold_" + str(i) + " double precision not null\n"
@@ -71,5 +71,32 @@ class Database():
         cursor.execute(sql_2)
         cursor.execute(sql_3)
         cursor.execute(sql_4)
+
+    def create_quantile_distribution(self, num_quantiles):
+        cursor = self.connection.cursor()
+
+        extended_query = ""
+
+        for i in range(1, num_quantiles):
+            val = i / float((num_quantiles))
+            if i != num_quantiles -1:
+                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations.activation),\n"
+            else:
+                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations.activation)\n"
+
+        query = '''insert into percentile_distribution \n select node_id,
+        ''' + extended_query + '''
+        from percentile_activations
+            group by node_id
+            order by node_id;'''
+        
+        print(query)
+        cursor.execute(query)
+        
+        query_2 = "select * from percentile_distribution"
+        cursor.execute(query_2)
+        rows = cursor.fetchall()
+        
+        return rows
 
 database = Database()

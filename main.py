@@ -49,8 +49,8 @@ class Net(nn.Module):
     def use_indices(self, val):
         self.indexed.set_use_indices(val)
 
-    def calculate_n_quantiles(self, num_quantiles):
-      self.eidetic.calculate_n_quantiles(num_quantiles)
+    def calculate_n_quantiles(self, num_quantiles, use_db):
+      self.eidetic.calculate_n_quantiles(num_quantiles, use_db)
 
     def index_layers(self, num_quantiles):
         # self.eidetic.build_index(num_quantiles)
@@ -241,7 +241,7 @@ def main():
 
             if use_indices == True:
                 print("Calculating Quantiles...")
-                model.calculate_n_quantiles(num_quantiles)
+                model.calculate_n_quantiles(num_quantiles, use_db)
                 print("Indexing Layers...")
                 model.index_layers(num_quantiles)
                 model.use_indices(True)
