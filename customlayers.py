@@ -74,16 +74,30 @@ class EideticLinearLayer(nn.Module):
         self.indexed_bias = nn.Parameter(bias)
 
 
-    #TODO: Convert from linear to binary search
+    
     def binarySearchQuantiles(self, activation, index):
         
-        for i in range(0, len(self.quantiles[index])):
-            if activation <= self.quantiles[index][i]:
-                
-                return i
+        low = 0
+        high = len(self.quantiles[index])
+
+
+        while low < high:
+            mid = int(low + (high - low) / 2)
+
+            if mid == 0:
+                return 0
+
+            if self.quantiles[index][mid] <= activation and self.quantiles[index][mid -1] >= activation:
+                return mid
+
+            if self.quantiles[index][mid] < activation:
+                low = mid + 1
+            else:
+                high = mid - 1
 
         if activation > self.quantiles[index][len(self.quantiles[index]) -1]:
             return len(self.quantiles[index]) 
+        
 
         return 0
         
@@ -97,7 +111,7 @@ class EideticLinearLayer(nn.Module):
                 
                 if use_db == True:
                     
-                    if self.n_quantile_rate <= random.uniform(0, 1):
+                    if self.n_quantile_rate >= random.uniform(0, 1):
                         db.database.insert_record(activation_vector)
 
                 self.outputValues[self.index] = activation_vector
@@ -169,49 +183,37 @@ class IndexedLinearLayer(nn.Module):
                 self.indexed_weights[i][j][index].requires_grad = True
     
     def set_use_indices(self, val):
+        self.use_previous_indices = True
         self.use_indices = val
 
     #TODO: Figure out how to rewrite forward/backward pass without requiring swapping of weights
     def forward(self, x, indices):
-        w_times_x= torch.mm(x, self.weights.t())
-        
         
         #TODO: Rewrite to improve performance
         if self.use_previous_indices == True and self.use_indices == True:
             
-
+            
             weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
 
             for i in range(0, len(weights_from_index)):
                 for j in range(0, len(indices[i])):
-                    index = int(self.previous_indices[i][j].item())
 
-                    for k in range(0, len(weights_from_index[i][j])):
-                        
-                        weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
-                        with torch.no_grad():
-                            self.indexed_weights[j][k][index] = self.weights[j][k].item()
+                    if self.previous_indices != None:
+                     prev_index = int(self.previous_indices[i][j].item())
 
-       
-        #TODO: Rewrite to improve performance
-        if self.use_indices == True:
-            
-            self.use_previous_indices = True
-            self.previous_indices = indices
-            weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
-            
-            for i in range(0, len(weights_from_index)):
-                for j in range(0, len(indices[i])):
                     index = int(indices[i][j].item())
 
                     for k in range(0, len(weights_from_index[i][j])):
                         
                         weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
                         with torch.no_grad():
-                            self.weights[j][k] = self.indexed_weights[j][k][index].item()
 
-       
-                
+                            if self.previous_indices != None:
+                                self.indexed_weights[j][k][prev_index] = self.weights[j][k].item()
+
+                            self.weights[j][k] = self.indexed_weights[j][k][index].item()     
+
+            self.previous_indices = indices   
             
 
         w_times_x= torch.mm(x, self.weights.t())

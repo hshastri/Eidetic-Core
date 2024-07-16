@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-
+import time
 
 logging.basicConfig(filename='benchmark.log', filemode='a', level=logging.DEBUG)
 logging.info("Started")
@@ -28,7 +28,7 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 36)
-        self.eidetic= customlayers.EideticLinearLayer(36, 36, 0.1, 1000)
+        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, 1000)
         self.indexed= customlayers.IndexedLinearLayer(36, 36)
 
     def forward(self, x, calculate_distribution, get_indices, use_db):
@@ -234,19 +234,19 @@ def main():
     round_ = 1
     use_indices = True
     use_db = False
+    num_quantiles = 8
 
     if os.getenv("USE_DB") == "True":
         use_db = True
         db.database.recreate_tables(num_quantiles)
         
-    num_quantiles = 8
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
         
- 
+    start_time = time.time()
     for epoch in range(1, args.epochs + 1):
 
         if round_ == 1:
-            # train(args, model, device, train_subset, optimizer, epoch, False, False, 26)
+            train(args, model, device, train_subset, optimizer, epoch, False, False, 26)
         
             test(model, device, degradation_subset, use_indices, use_db, False, 0, "Calculating Nthiles")
 
@@ -262,13 +262,13 @@ def main():
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
         test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        train(args2, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
         test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")
         test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")
         round_ = round_ + 1
         scheduler.step()
-
+    logging.info("--- %s seconds ---" % (time.time() - start_time))
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
 
