@@ -121,7 +121,8 @@ def unfreeze_eidetic_layers(model):
     
     i = 0
     for param in model.indexed.parameters():
-        if i == 0:
+        
+        if i >= 2:
             param.requires_grad = True
         i = i + 1
 
@@ -190,7 +191,7 @@ def main():
     # elif use_mps:
     #     device = torch.device("mps")
     # else:
-    device = torch.device("cuda")
+    device = torch.device("cpu")
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
@@ -261,8 +262,8 @@ def main():
             unfreeze_eidetic_layers(model)
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
-        test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        # test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
+        # train(args, model, device, train_subset, optimizer, epoch, False, use_indices, 0)
         test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")
         test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")

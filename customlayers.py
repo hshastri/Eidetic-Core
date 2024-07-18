@@ -145,29 +145,28 @@ class IndexedLinearLayer(nn.Module):
 
         bias = torch.Tensor(size_out)
         self.bias = nn.Parameter(bias)
-        
 
         # nn.init.uniform_(self.bias, -bound, bound)  # bias init
     
     def build_index(self, num_quantiles):
-        weights = torch.Tensor(self.size_out, self.size_in, num_quantiles)
+        self.param_index = nn.ParameterList()
     
         #Copy weights across indices from the trained weight vector
-        for i in range(0, len(weights)):
-      
-            for j in range(0, len(weights[i])):
-           
-                for k in range(0, len(weights[i][j])):
-                    weights[i][j][k] = self.weights[i][j]
-     
-        self.indexed_weights = nn.Parameter(weights)
+        for i in range(0, num_quantiles):
+
+            weights = torch.Tensor(self.size_in, self.size_out)
+            
+            for j in range(0, self.size_in):
+                for k in range(0, self.size_out):
+                    weights[j][k] = self.weights[k][j]
+
+            self.param_index.append(nn.Parameter(weights))
+
 
             
     def unfreeze_params(self):
         for param in self.weights:
             param.requires_grad = True
-
-
 
 
     def freeze_params(self):
@@ -186,35 +185,24 @@ class IndexedLinearLayer(nn.Module):
         self.use_previous_indices = True
         self.use_indices = val
 
+
     #TODO: Figure out how to rewrite forward/backward pass without requiring swapping of weights
     def forward(self, x, indices):
         
+        indices = indices[0].tolist()
+
         #TODO: Rewrite to improve performance
-        if self.use_previous_indices == True and self.use_indices == True:
+        if self.use_indices == True:
+            w_times_x = torch.Tensor(1, self.size_out)
             
-            
-            weights_from_index = torch.Tensor(len(x), self.size_out, self.size_in)
+            for i,p in enumerate(x):
+                index = int(indices[i])
+                w_times_x[0] = w_times_x[0] + self.param_index[index][i] * x[0][i]
+                
 
-            for i in range(0, len(weights_from_index)):
-                for j in range(0, len(indices[i])):
-
-                    if self.previous_indices != None:
-                     prev_index = int(self.previous_indices[i][j].item())
-
-                    index = int(indices[i][j].item())
-
-                    for k in range(0, len(weights_from_index[i][j])):
-                        
-                        weights_from_index[i][j][k] = self.indexed_weights[j][k][index]
-                        with torch.no_grad():
-
-                            if self.previous_indices != None:
-                                self.indexed_weights[j][k][prev_index] = self.weights[j][k].item()
-
-                            self.weights[j][k] = self.indexed_weights[j][k][index].item()     
-
-            self.previous_indices = indices   
+        else:
+            w_times_x= torch.mm(x, self.weights.t())
             
 
-        w_times_x= torch.mm(x, self.weights.t())
+        
         return torch.add(w_times_x, self.bias)
