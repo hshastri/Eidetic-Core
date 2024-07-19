@@ -5,7 +5,11 @@ import random
 import numpy as np
 import sys
 import db
+import logging
 np.set_printoptions(threshold=sys.maxsize)
+
+logging.basicConfig(filename='network.log', filemode='a', level=logging.DEBUG)
+logging.info("Started")
 
 #Testing branch protection...
 class EideticLinearLayer(nn.Module):
@@ -150,7 +154,8 @@ class IndexedLinearLayer(nn.Module):
     
     def build_index(self, num_quantiles):
         self.param_index = nn.ParameterList()
-    
+
+
         #Copy weights across indices from the trained weight vector
         for i in range(0, num_quantiles):
 
@@ -159,8 +164,11 @@ class IndexedLinearLayer(nn.Module):
             for j in range(0, self.size_in):
                 for k in range(0, self.size_out):
                     weights[j][k] = self.weights[k][j]
-
+            
             self.param_index.append(nn.Parameter(weights))
+        
+        
+        
 
 
             
@@ -193,13 +201,11 @@ class IndexedLinearLayer(nn.Module):
 
         #TODO: Rewrite to improve performance
         if self.use_indices == True:
-            w_times_x = torch.Tensor(1, self.size_out)
+            w_times_x = torch.zeros(1, self.size_out, requires_grad=True)
             
-            for i,p in enumerate(x):
+            for i,p in enumerate(x[0]):
                 index = int(indices[i])
                 w_times_x[0] = w_times_x[0] + self.param_index[index][i] * x[0][i]
-                
-
         else:
             w_times_x= torch.mm(x, self.weights.t())
             
