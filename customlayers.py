@@ -17,7 +17,6 @@ class EideticLinearLayer(nn.Module):
         self.weights = nn.Parameter(weights)  # nn.Parameter is a Tensor that's a module parameter.
         bias = torch.Tensor(size_out)
         self.bias = nn.Parameter(bias)
-
         self.outputValues = np.zeros([quantile_cardinality + 1, size_out])
         self.index = 0
         self.n_quantile_rate = n_quantile_rate
@@ -139,14 +138,15 @@ class IndexedLinearLayer(nn.Module):
         # initialize weights and biases
         nn.init.kaiming_uniform_(self.weights, a=math.sqrt(5)) # weight init
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weights)
+
         bound = 1 / math.sqrt(fan_in)
         self.use_previous_indices = False
         self.previous_indices = None
 
         bias = torch.Tensor(size_out)
         self.bias = nn.Parameter(bias)
+        nn.init.uniform_(self.bias, -bound, bound)  # bias init
 
-        # nn.init.uniform_(self.bias, -bound, bound)  # bias init
     
     def build_index(self, num_quantiles):
         self.param_index = nn.ParameterList()
