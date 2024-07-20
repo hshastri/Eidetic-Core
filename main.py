@@ -263,7 +263,7 @@ def main():
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
         # test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        # train(args, model, device, train_subset, optimizer, epoch, False, use_indices, 0)
+        train(args, model, device, train_subset, optimizer, epoch, False, use_indices, 0)
         test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")
         test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")

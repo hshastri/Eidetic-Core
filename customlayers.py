@@ -80,23 +80,10 @@ class EideticLinearLayer(nn.Module):
     
     def binarySearchQuantiles(self, activation, index):
         
-        low = 0
-        high = len(self.quantiles[index])
+        for i in range(0, len(self.quantiles[index])):
+                    if activation <= self.quantiles[index][i]:
 
-
-        while low < high:
-            mid = int(low + (high - low) / 2)
-
-            if mid == 0:
-                return 0
-
-            if self.quantiles[index][mid] <= activation and self.quantiles[index][mid -1] >= activation:
-                return mid
-
-            if self.quantiles[index][mid] < activation:
-                low = mid + 1
-            else:
-                high = mid - 1
+                        return i
 
         if activation > self.quantiles[index][len(self.quantiles[index]) -1]:
             return len(self.quantiles[index]) 
