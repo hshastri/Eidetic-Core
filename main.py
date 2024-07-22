@@ -28,8 +28,8 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 36)
-        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, 1000)
-        self.indexed= customlayers.IndexedLinearLayer(36, 36)
+        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")))
+        self.indexed= customlayers.IndexedLinearLayer(36, 36, int(os.getenv("NUM_QUANTILES")))
 
     def forward(self, x, calculate_distribution, get_indices, use_db):
         x = self.conv1(x)
@@ -217,14 +217,14 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     extension_train_loader = torch.utils.data.DataLoader(dataset3,**train_kwargs)
 
-    subset_indices = np.arange(1,1000) # select your indices here as a list
+    subset_indices = np.arange(1,int(os.getenv("TASK_B_SUBSET_CARDINALITY"))) # select your indices here as a list
 
     subset = torch.utils.data.Subset(extension_train_loader.dataset, subset_indices)
     degradation_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
 
 
     
-    subset_indices = np.arange(1,5000) # select your indices here as a list
+    subset_indices = np.arange(1,int(os.getenv("TASK_A_SUBSET_CARDINALITY"))) # select your indices here as a list
 
     subset = torch.utils.data.Subset(train_loader.dataset, subset_indices)
     train_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
@@ -235,7 +235,7 @@ def main():
     round_ = 1
     use_indices = True
     use_db = False
-    num_quantiles = 8
+    num_quantiles = int(os.getenv("NUM_QUANTILES"))
 
     if os.getenv("USE_DB") == "True":
         use_db = True
@@ -263,7 +263,10 @@ def main():
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
         # test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        train(args, model, device, train_subset, optimizer, epoch, False, use_indices, 0)
+        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
+        
         test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")
         test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST")
         print("Epoch finished...")
