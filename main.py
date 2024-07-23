@@ -117,11 +117,12 @@ def print_trainable_params(model):
         if param.requires_grad == True:
             print(param)
 
-def unfreeze_eidetic_layers(model):
+def unfreeze_eidetic_layers(model, num_quantiles):
     
     i = 0
     for param in model.indexed.parameters():
-        
+        if num_quantiles == 1 and i == 0:
+            param.requires_grad = True
         if i >= 2:
             param.requires_grad = True
         i = i + 1
@@ -156,42 +157,17 @@ def main():
     args = parser.parse_args()
 
 
-    parser2 = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser2.add_argument('--batch-size', type=int, default=1, metavar='N',
-                        help='input batch size for training (default: 64)')
-    parser2.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
-                        help='input batch size for testing (default: 1000)')
-    parser2.add_argument('--epochs', type=int, default=1, metavar='N',
-                        help='number of epochs to train (default: 14)')
-    parser2.add_argument('--lr', type=float, default=0.1, metavar='LR',
-                        help='learning rate (default: 1.0)')
-    parser2.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
-    parser2.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
-    parser2.add_argument('--no-mps', action='store_true', default=False,
-                        help='disables macOS GPU training')
-    parser2.add_argument('--dry-run', action='store_true', default=False,
-                        help='quickly check a single pass')
-    parser2.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser2.add_argument('--log-interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
-    parser2.add_argument('--save-model', action='store_true', default=False,
-                        help='For Saving the current Model')
-    args2 = parser2.parse_args()
-
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     use_mps = not args.no_mps and torch.backends.mps.is_available()
 
     torch.manual_seed(args.seed)
 
-    # if use_cuda:
-    #     device = torch.device("cuda")
-    # elif use_mps:
-    #     device = torch.device("mps")
-    # else:
-    device = torch.device("cpu")
+    if use_cuda:
+        device = torch.device("cuda")
+    elif use_mps:
+        device = torch.device("mps")
+    else:
+        device = torch.device("cuda")
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
@@ -233,9 +209,15 @@ def main():
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     round_ = 1
-    use_indices = True
-    use_db = False
     num_quantiles = int(os.getenv("NUM_QUANTILES"))
+
+    use_indices = True
+
+    if num_quantiles == 1:
+        use_indices = False
+
+    use_db = False
+    
 
     if os.getenv("USE_DB") == "True":
         use_db = True
@@ -259,12 +241,10 @@ def main():
                 model.use_indices(True)
             print("Freezing non eidetic layers...")
             freeze_layers(model)
-            unfreeze_eidetic_layers(model)
+            unfreeze_eidetic_layers(model, num_quantiles)
             # freeze_eidetic_layers(model)
         print("Training model with eidetic parameters...")
         # test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
-        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
         train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
         
         test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")

@@ -30,6 +30,10 @@ class Database():
         cursor.execute("INSERT INTO percentile_activations(node_id, activation) values " + record_str)
 
     def recreate_tables(self, num_quantiles):
+
+        if num_quantiles <= 1:
+            return
+            
         cursor = self.connection.cursor()
 
         sql_1 = '''create table percentile_activations(

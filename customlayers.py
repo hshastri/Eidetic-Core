@@ -64,18 +64,6 @@ class EideticLinearLayer(nn.Module):
                     inner_quantile.append(distribution[j][i+1])
                
                 self.quantiles.append(inner_quantile)
-    
-    #Build index for biases
-    def build_index(self, num_quantiles):
-        bias = torch.Tensor(self.size_out, num_quantiles)
-
-        #Copy my bias across my indices from the trained bias vector
-        for i in range(0, len(bias)):
-            for j in range(0, len(bias[i])):
-                bias[i][j] = self.bias[i]
-        
-        self.indexed_bias = nn.Parameter(bias)
-
 
     
     def binarySearchQuantiles(self, activation, index):
@@ -172,11 +160,11 @@ class IndexedLinearLayer(nn.Module):
         
         if self.use_indices == True:
 
-            final_output = torch.empty(len(x), self.size_out)
+            final_output = torch.empty(len(x), self.size_out).to("cuda")
             for batch in range(0, len(x)):
                 indices = indices[batch]
                 
-                outx = torch.empty(len(x[batch]), self.size_out)
+                outx = torch.empty(len(x[batch]), self.size_out).to("cuda")
                 
                 for i,p in enumerate(x[batch]):
                     index = int(indices[i]) * self.size_in + i
