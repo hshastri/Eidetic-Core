@@ -7,6 +7,10 @@ import sys
 import db
 import logging
 np.set_printoptions(threshold=sys.maxsize)
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
 
 logging.basicConfig(filename='network.log', filemode='a', level=logging.DEBUG)
 logging.info("Started")
@@ -127,7 +131,7 @@ class IndexedLinearLayer(nn.Module):
         nn.init.uniform_(self.bias, -bound, bound)  # bias init
 
         self.param_index = nn.ParameterList()
-
+        self.device_to_use = os.getenv("DEVICE")
 
         # #Copy weights across indices from the trained weight vector
         for i in range(0, num_quantiles):
@@ -160,11 +164,11 @@ class IndexedLinearLayer(nn.Module):
         
         if self.use_indices == True:
 
-            final_output = torch.empty(len(x), self.size_out).to("cuda")
+            final_output = torch.empty(len(x), self.size_out).to(self.device_to_use)
             for batch in range(0, len(x)):
                 indices = indices[batch]
                 
-                outx = torch.empty(len(x[batch]), self.size_out).to("cuda")
+                outx = torch.empty(len(x[batch]), self.size_out).to(self.device_to_use)
                 
                 for i,p in enumerate(x[batch]):
                     index = int(indices[i]) * self.size_in + i
