@@ -13,7 +13,7 @@ class Database():
         connection.autocommit = True
         self.connection = connection
 
-    def insert_record(self, record):
+    def insert_record(self, record, table_number):
 
         record_str = ""
         i = 1
@@ -27,21 +27,21 @@ class Database():
         
         cursor = self.connection.cursor()
 
-        cursor.execute("INSERT INTO percentile_activations(node_id, activation) values " + record_str)
+        cursor.execute("INSERT INTO percentile_activations_" + str(table_number) + "(node_id, activation) values " + record_str)
 
-    def recreate_tables(self, num_quantiles):
+    def recreate_tables(self, num_quantiles, table_number):
 
         if num_quantiles <= 1:
             return
             
         cursor = self.connection.cursor()
 
-        sql_1 = '''create table percentile_activations(
+        sql_1 = '''create table percentile_activations_''' + str(table_number) + '''(
             node_id		int not null,
             activation	double precision not null
         );'''
 
-        sql_2 = '''CREATE INDEX node_idx ON percentile_activations (node_id);'''
+        sql_2 = '''CREATE INDEX node_idx_''' + str(table_number) + ''' ON percentile_activations_'''+ str(table_number) +''' (node_id);'''
         
 
         extended_sql_3 = ""
@@ -53,16 +53,16 @@ class Database():
             else: 
                 extended_sql_3 = extended_sql_3 + "threshold_" + str(i) + " double precision not null\n"
 
-        sql_3 = '''create table percentile_distribution(
+        sql_3 = '''create table percentile_distribution_''' + str(table_number) + ''' (
             node_id		int not null,\n''' + extended_sql_3 + '''
             
         );'''
 
-        sql_4 = '''CREATE INDEX node_idx_dist ON percentile_distribution (node_id);'''
+        sql_4 = '''CREATE INDEX node_idx_dist_''' + str(table_number) + ''' ON percentile_distribution_''' + str(table_number) + '''(node_id);'''
 
-        sql_5 = '''drop table if exists percentile_activations;'''
+        sql_5 = '''drop table if exists percentile_activations_''' + str(table_number) + ''';'''
 
-        sql_6 = '''drop table if exists percentile_distribution;'''
+        sql_6 = '''drop table if exists percentile_distribution_''' + str(table_number) + ''';'''
 
         cursor.execute(sql_5)
         cursor.execute(sql_6)
@@ -71,7 +71,7 @@ class Database():
         cursor.execute(sql_3)
         cursor.execute(sql_4)
 
-    def create_quantile_distribution(self, num_quantiles):
+    def create_quantile_distribution(self, num_quantiles, table_number):
         cursor = self.connection.cursor()
 
         extended_query = ""
@@ -83,7 +83,7 @@ class Database():
             else:
                 extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations.activation)\n"
 
-        query = '''insert into percentile_distribution \n select node_id,
+        query = '''insert into percentile_distribution_''' + str(table_number) + ''' \n select node_id,
         ''' + extended_query + '''
         from percentile_activations
             group by node_id
@@ -91,7 +91,7 @@ class Database():
         
         cursor.execute(query)
         
-        query_2 = "select * from percentile_distribution"
+        query_2 = "select * from percentile_distribution_" + str(table_number)
         cursor.execute(query_2)
         rows = cursor.fetchall()
         

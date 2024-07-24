@@ -28,8 +28,16 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 36)
-        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")))
+        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")), 1)
+        self.eideticIndexed= customlayers.EideticIndexedLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")), int(os.getenv("NUM_QUANTILES")), 2)
         self.indexed= customlayers.IndexedLinearLayer(36, 36, int(os.getenv("NUM_QUANTILES")))
+        self.indexed_layers = {}
+        self.indexed_layers["1"] = self.eideticIndexed
+        self.indexed_layers["2"] = self.indexed
+
+        self.eidetic_layers = {}
+        self.eidetic_layers["1"] = self.eidetic
+        self.eidetic_layers["2"] = self.eideticIndexed
 
     def forward(self, x, calculate_distribution, get_indices, use_db):
         x = self.conv1(x)
@@ -43,7 +51,8 @@ class Net(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        [x, idxs] = self.eidetic(x, calculate_distribution, get_indices, use_db)
+        [x, idxs] = self.eidetic(x, calculate_distribution[0], get_indices[0], use_db[0])
+        [x, idxs] = self.eideticIndexed(x, idxs, calculate_distribution[1], get_indices[1], use_db[1])
         x = self.indexed(x, idxs)
         
         output = F.log_softmax(x, dim=1)
@@ -52,25 +61,25 @@ class Net(nn.Module):
     def unfreeze_eidetic_layers(self):
         self.indexed.unfreeze_params()
 
-    def use_indices(self, val):
-        self.indexed.set_use_indices(val)
+    def use_indices(self, val, table_number):
+        self.indexed_layers[table_number].set_use_indices(val)
 
-    def calculate_n_quantiles(self, num_quantiles, use_db):
-      self.eidetic.calculate_n_quantiles(num_quantiles, use_db)
+    def calculate_n_quantiles(self, num_quantiles, use_db, table_number):
+      self.eidetic_layers[table_number].calculate_n_quantiles(num_quantiles, use_db)
 
-    def index_layers(self, num_quantiles):
+    def index_layers(self, num_quantiles, table_number):
         # self.eidetic.build_index(num_quantiles)
-        self.indexed.build_index(num_quantiles)
+        self.indexed_layers[table_number].build_index(num_quantiles)
 
         
 
-def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, get_indices, val_to_add_to_target):
+def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, use_db, get_indices, val_to_add_to_target):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         target = target + val_to_add_to_target
         optimizer.zero_grad()
-        output = model(data, calculate_distribution, get_indices, False)
+        output = model(data, calculate_distribution, get_indices, use_db)
         loss = F.nll_loss(output, target)
         # loss.requires_grad = True
         loss.backward()
@@ -117,10 +126,10 @@ def print_trainable_params(model):
         if param.requires_grad == True:
             print(param)
 
-def unfreeze_eidetic_layers(model, num_quantiles):
+def unfreeze_eidetic_layers(model, num_quantiles, layer_number):
     
     i = 0
-    for param in model.indexed.parameters():
+    for param in model.indexed_layers[layer_number].parameters():
         if num_quantiles == 1 and i == 0:
             param.requires_grad = True
         if i >= 2:
@@ -217,35 +226,63 @@ def main():
 
     if os.getenv("USE_DB") == "True":
         use_db = True
-        db.database.recreate_tables(num_quantiles)
+        db.database.recreate_tables(num_quantiles, 1)
+        db.database.recreate_tables(num_quantiles, 2)
         
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
         
     start_time = time.time()
+
     for epoch in range(1, args.epochs + 1):
 
         if round_ == 1:
-            train(args, model, device, train_subset, optimizer, epoch, False, False, 26)
+
+            logging.info("\n\n\nLayer 1")
+            train(args, model, device, train_subset, optimizer, epoch, [False, False], [False, False], [False, False], 26)
+            # test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 1, Task A Pre-Training ")
+            # #Storing Activations
+            # test(model, device, degradation_subset, [use_indices, False], [use_db, False], [False, False], 0, "Layer 1, Task B, Storing Activations ")
+
+            # if use_indices == True:
+            #     print("Layer 1, Calculating Quantiles...")
+            #     model.calculate_n_quantiles(num_quantiles, use_db, "1")
+            #     print("Layer 1, Indexing Layers...")
+            #     model.index_layers(num_quantiles, "1")
+            #     model.use_indices(True, "1")
+            # print("FLayer 1, reezing non eidetic layers...")
+            # freeze_layers(model)
+            # unfreeze_eidetic_layers(model, num_quantiles, "1")
+            # print("Layer 1, Training model with eidetic parameters...")
         
-            test(model, device, degradation_subset, use_indices, use_db, False, 0, "Calculating Nthiles")
+            # train(args, model, device, degradation_subset, optimizer, epoch, [False, False], [False, False], [use_indices, False], 0)
+            
+            # test(model, device, degradation_subset, [False, False], [False, False], [use_indices, False], 0, "Layer 1, Task B ")
+            # test(model, device, train_subset, [False, False], [False, False], [use_indices, False], 26, "Layer 1, Task A ")
+            # print("Epoch finished...")
+
+            
+            logging.info("\n\n\nLayer 2")
+            test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 2, Task A Pre-Training ")
+            test(model, device, degradation_subset, [False, False], [False, False], [False, False], 0, "Layer 2, Task B Pre-Training ")
+            #Storing Activations
+            test(model, device, degradation_subset, [False, use_indices], [False, use_db], [False, False], 0, "Layer 2, Task B Storing Activations ")
 
             if use_indices == True:
-                print("Calculating Quantiles...")
-                model.calculate_n_quantiles(num_quantiles, use_db)
-                print("Indexing Layers...")
-                model.index_layers(num_quantiles)
-                model.use_indices(True)
-            print("Freezing non eidetic layers...")
+                print("Layer 2, Calculating Quantiles...")
+                model.calculate_n_quantiles(num_quantiles, use_db, "2")
+                print("Layer 2, Indexing Layers...")
+                model.index_layers(num_quantiles, "2")
+                model.use_indices(True, "2")
+            print("Layer 2, Freezing non eidetic layers...")
             freeze_layers(model)
-            unfreeze_eidetic_layers(model, num_quantiles)
-            # freeze_eidetic_layers(model)
-        print("Training model with eidetic parameters...")
-        # test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST PRE")
-        train(args, model, device, degradation_subset, optimizer, epoch, False, use_indices, 0)
-        
-        test(model, device, degradation_subset, False, False, use_indices, 0, "Letter MNIST")
-        test(model, device, train_subset, False, False, use_indices, 26, "Digit MNIST")
-        print("Epoch finished...")
+            unfreeze_eidetic_layers(model, num_quantiles, "2")
+            print("Layer 2, Training model with eidetic parameters...")
+            
+            train(args, model, device, degradation_subset, optimizer, epoch, [False, False], [False, False], [False, use_indices], 0)
+            
+            test(model, device, degradation_subset, [False, False], [False, False], [False, use_indices], 0, "Layer 2, Task B")
+            test(model, device, train_subset, [False, False], [False, False], [False, use_indices], 26, "Layer 2, Task A")
+            print("Epoch finished...")
         round_ = round_ + 1
         scheduler.step()
     logging.info("--- %s seconds ---" % (time.time() - start_time))
