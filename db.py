@@ -79,13 +79,13 @@ class Database():
         for i in range(1, num_quantiles):
             val = i / float((num_quantiles))
             if i != num_quantiles -1:
-                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations.activation),\n"
+                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations_" + str(table_number) + ".activation),\n"
             else:
-                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations.activation)\n"
+                extended_query = extended_query + "percentile_disc(" + str(val) + ") within group (order by percentile_activations_" + str(table_number) + ".activation)\n"
 
         query = '''insert into percentile_distribution_''' + str(table_number) + ''' \n select node_id,
         ''' + extended_query + '''
-        from percentile_activations
+        from percentile_activations_''' + str(table_number) + '''
             group by node_id
             order by node_id;'''
         
