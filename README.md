@@ -1,4 +1,4 @@
-# PyTorch MNIST Example with Custom Layers and Indexing
+# Eidetic Network
 
 This repository contains a PyTorch implementation of a Convolutional Neural Network (CNN) for the MNIST dataset, with custom layers designed to address catastrophic forgetting and improve accuracy. The model incorporates Eidetic and Indexed layers, which contribute to better performance across different tasks by storing and indexing activations.
 
