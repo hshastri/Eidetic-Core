@@ -202,7 +202,8 @@ def main():
 
     subset = torch.utils.data.Subset(extension_train_loader.dataset, subset_indices)
     degradation_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
-
+    #test_subset_a
+    #test_subset_b
 
     
     subset_indices = np.arange(1,int(os.getenv("TASK_A_SUBSET_CARDINALITY"))) # select your indices here as a list
@@ -239,28 +240,7 @@ def main():
 
             logging.info("\n\n\nLayer 1")
             train(args, model, device, train_subset, optimizer, epoch, [False, False], [False, False], [False, False], 26)
-            # test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 1, Task A Pre-Training ")
-            # #Storing Activations
-            # test(model, device, degradation_subset, [use_indices, False], [use_db, False], [False, False], 0, "Layer 1, Task B, Storing Activations ")
-
-            # if use_indices == True:
-            #     print("Layer 1, Calculating Quantiles...")
-            #     model.calculate_n_quantiles(num_quantiles, use_db, "1")
-            #     print("Layer 1, Indexing Layers...")
-            #     model.index_layers(num_quantiles, "1")
-            #     model.use_indices(True, "1")
-            # print("FLayer 1, reezing non eidetic layers...")
-            # freeze_layers(model)
-            # unfreeze_eidetic_layers(model, num_quantiles, "1")
-            # print("Layer 1, Training model with eidetic parameters...")
-        
-            # train(args, model, device, degradation_subset, optimizer, epoch, [False, False], [False, False], [use_indices, False], 0)
-            
-            # test(model, device, degradation_subset, [False, False], [False, False], [use_indices, False], 0, "Layer 1, Task B ")
-            # test(model, device, train_subset, [False, False], [False, False], [use_indices, False], 26, "Layer 1, Task A ")
-            # print("Epoch finished...")
-
-            
+  
             logging.info("\n\n\nLayer 2")
             test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 2, Task A Pre-Training ")
             test(model, device, degradation_subset, [False, False], [False, False], [False, False], 0, "Layer 2, Task B Pre-Training ")
