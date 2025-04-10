@@ -3,22 +3,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import customlayers
-import logging 
+import logging
 import numpy as np
 import db
-
-from dotenv import load_dotenv
-load_dotenv()
-
+import pandas as pd
+from torch.utils.data import Dataset, DataLoader
 import os
 import time
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# Logging setup
 logging.basicConfig(filename='benchmark.log', filemode='a', level=logging.DEBUG)
 logging.info("Started")
 
+# ----------------------
+# Custom Dataset Loader
+# ----------------------
+class MNISTCSVLoader(Dataset):
+    def __init__(self, csv_file):
+        self.data = pd.read_csv(csv_file)
+        self.labels = self.data.iloc[:, 0].values
+        self.images = self.data.iloc[:, 1:].values.reshape(-1, 28, 28).astype('float32')
+        self.images = self.images / 255.0  # normalize to 0-1
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        image = torch.tensor(self.images[idx]).unsqueeze(0)  # Add channel dimension
+        label = torch.tensor(self.labels[idx]).long()
+        return image, label
+
+# ----------------------
+# Neural Network Model
+# ----------------------
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -28,16 +50,16 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(9216, 128)
         self.fc2 = nn.Linear(128, 36)
-        self.eidetic= customlayers.EideticLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")), 1)
-        self.eideticIndexed= customlayers.EideticIndexedLinearLayer(36, 36, 1.0, int(os.getenv("TASK_B_SUBSET_CARDINALITY")), int(os.getenv("NUM_QUANTILES")), 2)
-        self.indexed= customlayers.IndexedLinearLayer(36, 36, int(os.getenv("NUM_QUANTILES")))
-        self.indexed_layers = {}
-        self.indexed_layers["1"] = self.eideticIndexed
-        self.indexed_layers["2"] = self.indexed
 
-        self.eidetic_layers = {}
-        self.eidetic_layers["1"] = self.eidetic
-        self.eidetic_layers["2"] = self.eideticIndexed
+        task_b_cardinality = int(os.getenv("TASK_B_SUBSET_CARDINALITY"))
+        num_quantiles = int(os.getenv("NUM_QUANTILES"))
+
+        self.eidetic = customlayers.EideticLinearLayer(36, 36, 1.0, task_b_cardinality, 1)
+        self.eideticIndexed = customlayers.EideticIndexedLinearLayer(36, 36, 1.0, task_b_cardinality, num_quantiles, 2)
+        self.indexed = customlayers.IndexedLinearLayer(36, 36, num_quantiles)
+
+        self.indexed_layers = {"1": self.eideticIndexed, "2": self.indexed}
+        self.eidetic_layers = {"1": self.eidetic, "2": self.eideticIndexed}
 
     def forward(self, x, calculate_distribution, get_indices, use_db):
         x = self.conv1(x)
@@ -51,12 +73,11 @@ class Net(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
+
         [x, idxs] = self.eidetic(x, calculate_distribution[0], get_indices[0], use_db[0])
         [x, idxs] = self.eideticIndexed(x, idxs, calculate_distribution[1], get_indices[1], use_db[1])
         x = self.indexed(x, idxs)
-        
-        output = F.log_softmax(x, dim=1)
-        return output
+        return F.log_softmax(x, dim=1)
 
     def unfreeze_eidetic_layers(self):
         self.indexed.unfreeze_params()
@@ -65,14 +86,14 @@ class Net(nn.Module):
         self.indexed_layers[table_number].set_use_indices(val)
 
     def calculate_n_quantiles(self, num_quantiles, use_db, table_number):
-      self.eidetic_layers[table_number].calculate_n_quantiles(num_quantiles, use_db)
+        self.eidetic_layers[table_number].calculate_n_quantiles(num_quantiles, use_db)
 
     def index_layers(self, num_quantiles, table_number):
-        # self.eidetic.build_index(num_quantiles)
         self.indexed_layers[table_number].build_index(num_quantiles)
 
-        
-
+# ----------------------
+# Training function
+# ----------------------
 def train(args, model, device, train_loader, optimizer, epoch, calculate_distribution, use_db, get_indices, val_to_add_to_target):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -81,17 +102,17 @@ def train(args, model, device, train_loader, optimizer, epoch, calculate_distrib
         optimizer.zero_grad()
         output = model(data, calculate_distribution, get_indices, use_db)
         loss = F.nll_loss(output, target)
-        # loss.requires_grad = True
         loss.backward()
         optimizer.step()
+
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+            print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
             if args.dry_run:
                 break
 
-
+# ----------------------
+# Test function
+# ----------------------
 def test(model, device, test_loader, calculate_distribution, use_db, get_indices, val_to_add_to_target, test_name):
     model.eval()
     test_loss = 0
@@ -101,174 +122,121 @@ def test(model, device, test_loader, calculate_distribution, use_db, get_indices
             data, target = data.to(device), target.to(device)
             target = target + val_to_add_to_target
             output = model(data, calculate_distribution, get_indices, use_db)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            test_loss += F.nll_loss(output, target, reduction='sum').item()
+            pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
+    print(f'\n{test_name} Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset):.0f}%)\n')
+    logging.info(f'{test_name} Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset):.0f}%)\n')
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
-    logging.info(test_name + 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
-
+# ----------------------
+# Utility functions
+# ----------------------
 def freeze_layers(model):
     for param in model.parameters():
         param.requires_grad = False
 
-def freeze_eidetic_layers(model):
-    model.indexed.freeze_params()
-
-def print_trainable_params(model):
-    for param in model.parameters():
-        if param.requires_grad == True:
-            print(param)
-
 def unfreeze_eidetic_layers(model, num_quantiles, layer_number):
-    
-    i = 0
-    for param in model.indexed_layers[layer_number].parameters():
+    for i, param in enumerate(model.indexed_layers[layer_number].parameters()):
         if num_quantiles == 1 and i == 0:
             param.requires_grad = True
         if i >= 2:
             param.requires_grad = True
-        i = i + 1
 
-    
-        
+# ----------------------
+# Main training workflow
+# ----------------------
 def main():
-    # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=1, metavar='N',
-                        help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
-                        help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
-                        help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
-                        help='learning rate (default: 1.0)')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
-    parser.add_argument('--no-mps', action='store_true', default=False,
-                        help='disables macOS GPU training')
-    parser.add_argument('--dry-run', action='store_true', default=False,
-                        help='quickly check a single pass')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
-    parser.add_argument('--save-model', action='store_true', default=False,
-                        help='For Saving the current Model')
+    parser.add_argument('--batch-size', type=int, default=1)
+    parser.add_argument('--test-batch-size', type=int, default=1000)
+    parser.add_argument('--epochs', type=int, default=1)
+    parser.add_argument('--lr', type=float, default=1.0)
+    parser.add_argument('--gamma', type=float, default=0.7)
+    parser.add_argument('--no-cuda', action='store_true', default=False)
+    parser.add_argument('--no-mps', action='store_true', default=False)
+    parser.add_argument('--dry-run', action='store_true', default=False)
+    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--log-interval', type=int, default=10)
+    parser.add_argument('--save-model', action='store_true', default=False)
     args = parser.parse_args()
-
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     use_mps = not args.no_mps and torch.backends.mps.is_available()
-
     torch.manual_seed(args.seed)
 
-    #cpu or cuda
-    device = os.getenv("DEVICE")
+    device = torch.device("cuda" if use_cuda else "mps" if use_mps else "cpu")
 
-    train_kwargs = {'batch_size': args.batch_size}
-    test_kwargs = {'batch_size': args.test_batch_size}
-    use_cude = True
-    if use_cuda:
-        cuda_kwargs = {'num_workers': 1,
-                       'pin_memory': True,
-                       'shuffle': True}
-        train_kwargs.update(cuda_kwargs)
-        test_kwargs.update(cuda_kwargs)
+    train_kwargs = {'batch_size': args.batch_size, 'shuffle': True, 'num_workers': 0}
+    test_kwargs = {'batch_size': args.test_batch_size, 'shuffle': False, 'num_workers': 0}
 
-    transform=transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-        ])
-    dataset1 = datasets.MNIST('../data', train=True, download=True,
-                       transform=transform)
-    dataset2 = datasets.MNIST('../data', train=False,
-                       transform=transform)
-    dataset3 = datasets.EMNIST('../data', train=True,
-                       transform=transform, split="letters", download=True)
-    train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
-    test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
-    extension_train_loader = torch.utils.data.DataLoader(dataset3,**train_kwargs)
+    # Use your local MNIST CSV files
+    dataset1 = MNISTCSVLoader('mnist_train.csv')
+    dataset2 = MNISTCSVLoader('mnist_test.csv')
 
-    subset_indices = np.arange(1,int(os.getenv("TASK_B_SUBSET_CARDINALITY"))) # select your indices here as a list
+    train_loader = DataLoader(dataset1, **train_kwargs)
+    test_loader = DataLoader(dataset2, **test_kwargs)
 
-    subset = torch.utils.data.Subset(extension_train_loader.dataset, subset_indices)
-    degradation_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
-    #test_subset_a
-    #test_subset_b
+    # Use subset for Task A and Task B
+    subset_indices = np.arange(1, int(os.getenv("TASK_B_SUBSET_CARDINALITY")))
+    degradation_subset = DataLoader(torch.utils.data.Subset(dataset1, subset_indices), batch_size=1, shuffle=True)
 
-    
-    subset_indices = np.arange(1,int(os.getenv("TASK_A_SUBSET_CARDINALITY"))) # select your indices here as a list
-
-    subset = torch.utils.data.Subset(train_loader.dataset, subset_indices)
-    train_subset = torch.utils.data.DataLoader(subset, batch_size=1, num_workers=0, shuffle=True)
+    subset_indices = np.arange(1, int(os.getenv("TASK_A_SUBSET_CARDINALITY")))
+    train_subset = DataLoader(torch.utils.data.Subset(dataset1, subset_indices), batch_size=1, shuffle=True)
 
     model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
     round_ = 1
     num_quantiles = int(os.getenv("NUM_QUANTILES"))
+    use_indices = num_quantiles != 1
+    use_db = os.getenv("USE_DB") == "True"
 
-    use_indices = True
-
-    if num_quantiles == 1:
-        use_indices = False
-
-    use_db = False
-    
-
-    if os.getenv("USE_DB") == "True":
-        use_db = True
+    if use_db:
         db.database.recreate_tables(num_quantiles, 1)
         db.database.recreate_tables(num_quantiles, 2)
-        
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-        
+
     start_time = time.time()
 
     for epoch in range(1, args.epochs + 1):
-
         if round_ == 1:
-
-            logging.info("\n\n\nLayer 1")
+            logging.info("Layer 1")
             train(args, model, device, train_subset, optimizer, epoch, [False, False], [False, False], [False, False], 26)
-  
-            logging.info("\n\n\nLayer 2")
-            test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 2, Task A Pre-Training ")
-            test(model, device, degradation_subset, [False, False], [False, False], [False, False], 0, "Layer 2, Task B Pre-Training ")
-            #Storing Activations
-            test(model, device, degradation_subset, [False, use_indices], [False, use_db], [False, False], 0, "Layer 2, Task B Storing Activations ")
 
-            if use_indices == True:
+            logging.info("Layer 2 Pre-Training")
+            test(model, device, train_subset, [False, False], [False, False], [False, False], 26, "Layer 2, Task A Pre-Training")
+            test(model, device, degradation_subset, [False, False], [False, False], [False, False], 0, "Layer 2, Task B Pre-Training")
+
+            test(model, device, degradation_subset, [False, use_indices], [False, use_db], [False, False], 0, "Layer 2, Task B Storing Activations")
+
+            if use_indices:
                 print("Layer 2, Calculating Quantiles...")
                 model.calculate_n_quantiles(num_quantiles, use_db, "2")
                 print("Layer 2, Indexing Layers...")
                 model.index_layers(num_quantiles, "2")
                 model.use_indices(True, "2")
-            print("Layer 2, Freezing non eidetic layers...")
+
+            print("Layer 2, Freezing non-eidetic layers...")
             freeze_layers(model)
             unfreeze_eidetic_layers(model, num_quantiles, "2")
+
             print("Layer 2, Training model with eidetic parameters...")
-            
             train(args, model, device, degradation_subset, optimizer, epoch, [False, False], [False, False], [False, use_indices], 0)
-            
+
             test(model, device, degradation_subset, [False, False], [False, False], [False, use_indices], 0, "Layer 2, Task B")
             test(model, device, train_subset, [False, False], [False, False], [False, use_indices], 26, "Layer 2, Task A")
+
             print("Epoch finished...")
-        round_ = round_ + 1
+
+        round_ += 1
         scheduler.step()
-    logging.info("--- %s seconds ---" % (time.time() - start_time))
+
+    logging.info(f"--- {time.time() - start_time} seconds ---")
+
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
-
 
 if __name__ == '__main__':
     main()
